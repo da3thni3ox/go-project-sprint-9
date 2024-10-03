@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"log"
 	"sync"
+	"time"
 )
 
 func Generator(ctx context.Context, ch chan<- int64, fn func(int64)) {
+	defer close(ch)
 	for i := int64(1); ; i++ {
 		select {
 		case <-ctx.Done(): // Проверка, не отменен ли контекст
@@ -30,7 +32,7 @@ func main() {
 
 	// 3. Создание контекста
 	// ...
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 
 	// для проверки будем считать количество и сумму отправленных чисел
