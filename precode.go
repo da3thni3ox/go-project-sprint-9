@@ -7,19 +7,22 @@ import (
 	"sync"
 )
 
-// Generator генерирует последовательность чисел 1,2,3 и т.д. и
-// отправляет их в канал ch. При этом после записи в канал для каждого числа
-// вызывается функция fn. Она служит для подсчёта количества и суммы
-// сгенерированных чисел.
 func Generator(ctx context.Context, ch chan<- int64, fn func(int64)) {
-	// 1. Функция Generator
-	// ...
+	for i := int64(1); ; i++ {
+		select {
+		case <-ctx.Done(): // Проверка, не отменен ли контекст
+			return
+		case ch <- i: // Отправляем число в канал
+			fn(i) // Вызываем функцию для подсчета
+		}
+	}
 }
 
-// Worker читает число из канала in и пишет его в канал out.
 func Worker(in <-chan int64, out chan<- int64) {
-	// 2. Функция Worker
-	// ...
+	defer close(out)
+	for num := range in {
+		out <- num
+	}
 }
 
 func main() {
@@ -27,6 +30,8 @@ func main() {
 
 	// 3. Создание контекста
 	// ...
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	// для проверки будем считать количество и сумму отправленных чисел
 	var inputSum int64   // сумма сгенерированных чисел
@@ -57,6 +62,17 @@ func main() {
 	// 4. Собираем числа из каналов outs
 	// ...
 
+	for i := 0; i < NumOut; i++ {
+		wg.Add(1) // Увеличиваем счетчик WaitGroup для каждой горутины
+		go func(index int, out chan int64) {
+			defer wg.Done() // Уменьшаем счетчик при завершении горутины
+			for num := range out {
+				chOut <- num     // Отправляем число в результирующий канал
+				amounts[index]++ // Увеличиваем статистику для соответствующей горутины
+			}
+		}(i, outs[i])
+	}
+
 	go func() {
 		// ждём завершения работы всех горутин для outs
 		wg.Wait()
@@ -69,6 +85,10 @@ func main() {
 
 	// 5. Читаем числа из результирующего канала
 	// ...
+	for num := range chOut {
+		count++    // Увеличиваем количество
+		sum += num // Увеличиваем сумму
+	}
 
 	fmt.Println("Количество чисел", inputCount, count)
 	fmt.Println("Сумма чисел", inputSum, sum)
@@ -87,4 +107,5 @@ func main() {
 	if inputCount != 0 {
 		log.Fatalf("Ошибка: разделение чисел по каналам неверное\n")
 	}
+
 }
